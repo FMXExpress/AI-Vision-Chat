@@ -5,6 +5,14 @@ Features llava-13b which uses a vision encoder and Vicuna to allow you to discus
 
 The AI Vision Chat Desktop client is a powerful UI for allowing you to discuss the contents of an image with a chat bot. 
 
+Visual Language Models supported:
+* LLaVA-13b
+* fuyu-8b
+* minigpt-4
+* instructblip-vicuna13b
+* mplug-owl
+* blip-2
+
 Built with Delphi using the FireMonkey [cross-platform development](https://www.embarcadero.com/products/delphi/) framework this client works on Windows, macOS, and Linux (and maybe Android+iOS) with a single codebase and single UI. At the moment it is specifically set up for Windows.
 
 It also features a REST integration with Replicate.com for hosting the model used in the client. You need to sign up for an API key to access that functionality. Replicate models can be run in the cloud or locally via docker.
