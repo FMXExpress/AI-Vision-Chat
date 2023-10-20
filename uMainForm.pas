@@ -11,7 +11,9 @@ uses
   FireDAC.DApt.Intf, Data.DB, FireDAC.Comp.DataSet, FireDAC.Comp.Client,
   REST.Response.Adapter, REST.Client, Data.Bind.Components,
   Data.Bind.ObjectScope, FMX.TabControl, FMX.Memo.Types, FMX.ScrollBox, FMX.Memo,
-  FMX.TextLayout;
+  FMX.TextLayout, FireDAC.Stan.StorageBin, FMX.ListBox, System.Rtti,
+  System.Bindings.Outputs, Fmx.Bind.Editors, Data.Bind.EngExt,
+  Fmx.Bind.DBEngExt, Data.Bind.DBScope;
 
 type
   TMainForm = class(TForm)
@@ -53,6 +55,13 @@ type
     Timer1: TTimer;
     Timer2: TTimer;
     Splitter1: TSplitter;
+    ModelsMT: TFDMemTable;
+    VersionEdit: TComboBox;
+    BindSourceDB1: TBindSourceDB;
+    BindingsList1: TBindingsList;
+    LinkListControlToField1: TLinkListControlToField;
+    ModelLabel: TLabel;
+    LinkPropertyToFieldText: TLinkPropertyToField;
     procedure OpenButtonClick(Sender: TObject);
     procedure Timer1Timer(Sender: TObject);
     procedure Timer2Timer(Sender: TObject);
@@ -142,6 +151,25 @@ begin
   end;
 end;
 
+function IsJSONArray(const s: string): Boolean;
+var
+  JSONValue: TJSONValue;
+begin
+  Result := False;
+  try
+    JSONValue := TJSONObject.ParseJSONValue(s);
+    try
+      if JSONValue is TJSONArray then
+        Result := True;
+    finally
+      JSONValue.Free;
+    end;
+  except
+    on E: EJSONException do
+      // Do nothing; Result remains False
+  end;
+end;
+
 procedure TMainForm.Timer1Timer(Sender: TObject);
 begin
   RestRequest2.Params[0].Value := 'Token ' + APIKeyEdit.Text;
@@ -161,13 +189,19 @@ begin
 
       if FDMemTable2.FindField('output')<>nil then
       begin
-        var OutputArray := ParseJSONStrArray(FDMemTable2.FieldByName('output').AsWideString);
-
         var LResponse := '';
-        for var I := 0 to High(OutputArray) do
+
+        if IsJSONArray(FDMemTable2.FieldByName('output').AsWideString) then
         begin
-          LResponse := LResponse+OutputArray[I];
-        end;
+          var OutputArray := ParseJSONStrArray(FDMemTable2.FieldByName('output').AsWideString);
+
+          for var I := 0 to High(OutputArray) do
+          begin
+            LResponse := LResponse+OutputArray[I];
+          end;
+        end
+        else
+          LResponse := FDMemTable2.FieldByName('output').AsWideString;
 
         FriendMessage(LResponse);
       end;
@@ -184,13 +218,19 @@ begin
       XrayMemo.Lines.Append('Response');
       XrayMemo.Lines.Append(RESTResponse2.Content+#13#10);
 
-      var OutputArray := ParseJSONStrArray(FDMemTable2.FieldByName('output').AsWideString);
-
       var LResponse := '';
-      for var I := 0 to High(OutputArray) do
+
+      if IsJSONArray(FDMemTable2.FieldByName('output').AsWideString) then
       begin
-        LResponse := LResponse+OutputArray[I];
-      end;
+        var OutputArray := ParseJSONStrArray(FDMemTable2.FieldByName('output').AsWideString);
+
+        for var I := 0 to High(OutputArray) do
+        begin
+          LResponse := LResponse+OutputArray[I];
+        end;
+      end
+      else
+        LResponse := FDMemTable2.FieldByName('output').AsWideString;
 
       FriendMessage(LResponse);
       FCurrentMessage := nil;
@@ -332,6 +372,17 @@ begin
     Exit;
   end;
 
+  // fuyu-8b needs a file loaded
+  if ModelLabel.Text='42f23bc876570a46f5a90737086fbc4c3f79dd11753a28eaa39544dd391815e9' then
+  begin
+    if ImageEdit.Text='' then
+    begin
+      ShowMessage('Load a file from disk or URL for this model.');
+      Exit;
+    end;
+  end;
+
+
   YourMessage(PromptEdit.Text);
   FCurrentMessage := nil;
 
@@ -352,16 +403,31 @@ begin
       SourceImage.Bitmap.SaveToStream(LSourceStream);
   end;
 
+  var LPrompt := '"prompt":';
+  var LImage := '"image":';
+  // blip-2 uses "question" instead of "prompt"
+  if ModelLabel.Text='9109553e37d266369f2750e407ab95649c63eb8e13f13b1f3983ff0feb2f9ef7' then
+    LPrompt :=  '"question":';
+  // these models need img instead of image
+  if ((ModelLabel.Text='c4c54e3c8c97cd50c2d2fec9be3b6065563ccf7d43787fb99f84151b867178fe') OR (ModelLabel.Text='51a43c9d00dfd92276b2511b509fcb3ad82e221f6a9e5806c54e69803e291d6b')) then
+    LImage := '"img":';
+
   RestRequest1.Params[0].Value := 'Token ' + APIKeyEdit.Text;
   RestRequest1.Params[1].Value := TemplateMemo.Lines.Text.Replace('%prompt%',JSONQuote(PromptEdit.Text))
-  .Replace('%base64%','"'+MemoryStreamToBase64(LSourceStream)+'"');
+  .Replace('%base64%','"'+MemoryStreamToBase64(LSourceStream)+'"')
+  .Replace('"prompt":',LPrompt)
+  .Replace('"image":',LImage)
+  .Replace('%model%',JSONQuote(ModelLabel.Text));
 
   XrayMemo.Lines.Append('POST Request');
   XrayMemo.Lines.Append('URL:');
   XrayMemo.Lines.Append(RestClient1.BaseURL+#13#10);
   XrayMemo.Lines.Append('Payload:');
   XrayMemo.Lines.Append(TemplateMemo.Lines.Text.Replace('%prompt%',JSONQuote(PromptEdit.Text))
-  .Replace('%base64%','"'+'...'+'"'));
+  .Replace('%base64%','"'+'...'+'"')
+  .Replace('"prompt":',LPrompt)
+  .Replace('"image":',LImage)
+  .Replace('%model%',JSONQuote(ModelLabel.Text)));
   XrayMemo.Lines.Append('');
 
   RESTRequest1.Execute;
