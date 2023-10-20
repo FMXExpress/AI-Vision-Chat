@@ -30,7 +30,7 @@ curl http://localhost:5000/predictions -X POST \
   }}'
 ```
 
-#AI Vision Chat Desktop client Screeshot on Windows
+# AI Vision Chat Desktop client Screeshot on Windows
 ![AI Vision Chat Desktop client on Windows](/screenshot.png)
 
 Other Delphi AI clients:
